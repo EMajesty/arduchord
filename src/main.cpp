@@ -2,10 +2,13 @@
 #include "pins_arduino.h"
 #include <USB-MIDI.h>
 #include <Keypad.h>
+#include <LiquidCrystal_I2C.h>
 
 USBMIDI_CREATE_DEFAULT_INSTANCE();
 
-byte root = 60;
+LiquidCrystal_I2C lcd(0x27,16,1);
+
+byte root = 50;
 
 struct Chord {
     const char* name;
@@ -18,19 +21,19 @@ struct Scale {
 };
 
 Chord recipes[] = {
-    {"maj", {0, 4, 7}},         // 0
-    {"maj6", {0, 4, 7, 9}},
-    {"dom7", {0, 4, 7, 10}},
-    {"maj7", {0, 4, 7, 11}},
-    {"aug", {0, 4, 8}},
-    {"aug7", {0, 4, 8, 10}},
-    {"min", {0, 3, 7}},         // 6
-    {"min6", {0, 3, 7, 9}},
-    {"min7", {0, 3, 7, 10}},
-    {"minmaj7", {0, 3, 7, 11}},
-    {"dim", {0, 3, 6}},         // 10
-    {"dim7", {0, 3, 6, 9}},
-    {"hdim7", {0, 3, 6, 10}},
+    {"major", {0, 4, 7}},         // 0
+    {"major 6", {0, 4, 7, 9}},
+    {"dominant 7", {0, 4, 7, 10}},
+    {"major 7", {0, 4, 7, 11}},
+    {"augmented", {0, 4, 8}},
+    {"augmented 7", {0, 4, 8, 10}},
+    {"minor", {0, 3, 7}},         // 6
+    {"minor 6", {0, 3, 7, 9}},
+    {"minor 7", {0, 3, 7, 10}},
+    {"minormajor 7", {0, 3, 7, 11}},
+    {"diminished", {0, 3, 6}},         // 10
+    {"diminished 7", {0, 3, 6, 9}},
+    {"half diminished 7", {0, 3, 6, 10}},
 };
 
 Scale scales[] = { // {semitones from root, chord type}
@@ -39,14 +42,17 @@ Scale scales[] = { // {semitones from root, chord type}
 };
 
 byte currentScale = 1;
+Chord currentChord;
+
+String noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 const byte ROWS = 1;
 const byte COLS = 7;
 char keys[ROWS][COLS] = {
     {0, 1, 2, 3, 4, 5, 6}
 };
-byte rowPins[ROWS] = {2};
-byte colPins[COLS] = {3, 4, 5, 6, 7, 8, 9};
+byte rowPins[ROWS] = {4};
+byte colPins[COLS] = {5, 6, 7, 8, 9, 10, 16};
 
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
@@ -58,6 +64,11 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     MIDI.begin(4);
     keypad.addEventListener(keypadEvent);
+
+    lcd.init();
+    lcd.backlight();
+    lcd.setCursor(0, 0);
+    lcd.print("HELLO");
 }
 
 void loop() {
@@ -65,10 +76,11 @@ void loop() {
 }
 
 void keypadEvent(KeypadEvent key) {
-    int keyNr = key - '0';
     switch (keypad.getState()) {
         case PRESSED:
-            playChord(recipes[scales[currentScale].notes[key][1]], scales[currentScale].notes[key][0]);
+            if (key < 7) {
+                playChord(recipes[scales[currentScale].notes[key][1]], scales[currentScale].notes[key][0]);
+            }
             break;
         case RELEASED:
             break;
@@ -86,8 +98,21 @@ void killAll() {
 }
 
 void playChord(Chord chord, int offset) {
+    // for (int i = 0; i < sizeof(currentChord.notes) / sizeof(currentChord.notes[0]); i++) {
+    //     MIDI.sendNoteOff(i, 0, 1);
+    // }
+    // currentChord = chord;
     killAll();
     for (uint i = 0; i < sizeof(chord.notes) / sizeof(chord.notes[0]); i++) {
         MIDI.sendNoteOn(root + offset + chord.notes[i], 127, 1);
     }
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(noteNames[(root) % (sizeof(noteNames) / sizeof(noteNames[0]))]);
+    lcd.print(" ");
+    lcd.print(scales[currentScale].name);
+    lcd.print(" ");
+    lcd.print(noteNames[(root + offset) % (sizeof(noteNames) / sizeof(noteNames[0]))]);
+    lcd.print(" ");
+    lcd.print(chord.name);
 }
