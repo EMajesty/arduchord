@@ -73,7 +73,7 @@ Chord* currentChord = &recipes[0];
 bool mode = true;
 byte currentOffset;
 
-const PROGMEM String noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+const String noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
 const byte ROWS = 5;
 const byte COLS = 4;
