@@ -12,10 +12,22 @@ USBMIDI_CREATE_DEFAULT_INSTANCE();
 
 hd44780_I2Cexp lcd;
 
-const int LCD_COLS = 20;
-const int LCD_ROWS = 4;
+const int LCD_COLS = 16;
+const int LCD_ROWS = 2;
+
+enum EncoderMode {
+    SCALE,
+    NOTE
+};
 
 byte root = 60;
+
+enum Inversion {
+    ROOT,
+    FIRST,
+    SECOND,
+    THIRD
+};
 
 struct Chord {
     const char* name;
@@ -32,20 +44,29 @@ struct Scale {
     byte notes[7];
 };
 
-Chord recipes[] = {
-    {"major", {0, 4, 7}},           // 0
-    {"major 6", {0, 4, 7, 9}},      // 1
-    {"dominant 7", {0, 4, 7, 10}},  // 2
-    {"major 7", {0, 4, 7, 11}},     // 3
-    {"augmented", {0, 4, 8}},       // 4
-    {"augmented 7", {0, 4, 8, 10}}, // 5
-    {"minor", {0, 3, 7}},           // 6
-    {"minor 6", {0, 3, 7, 9}},      // 7
-    {"minor 7", {0, 3, 7, 10}},     // 8
-    {"minormajor 7", {0, 3, 7, 11}},// 9
-    {"diminished", {0, 3, 6}},      // 10
-    {"diminished 7", {0, 3, 6, 9}}, // 11
-    {"half diminished 7", {0, 3, 6, 10}},   // 12
+// Chord recipes[] = {
+//     {"major", {0, 4, 7}},           // 0
+//     {"major 6", {0, 4, 7, 9}},      // 1
+//     {"dominant 7", {0, 4, 7, 10}},  // 2
+//     {"major 7", {0, 4, 7, 11}},     // 3
+//     {"augmented", {0, 4, 8}},       // 4
+//     {"augmented 7", {0, 4, 8, 10}}, // 5
+//     {"minor", {0, 3, 7}},           // 6
+//     {"minor 6", {0, 3, 7, 9}},      // 7
+//     {"minor 7", {0, 3, 7, 10}},     // 8
+//     {"minormajor 7", {0, 3, 7, 11}},// 9
+//     {"diminished", {0, 3, 6}},      // 10
+//     {"diminished 7", {0, 3, 6, 9}}, // 11
+//     {"half diminished 7", {0, 3, 6, 10}},   // 12
+// };
+
+Chord chords[] = {
+    {"third", {0, 2, 4}},
+    {"fourth", {0, 3, 6}},
+    {"seventh", {0, 2, 6}},
+    {"ninth", {0, 2, 8}},
+    {"eleventh", {0, 2, 10}},
+    {"thirteenth", {0, 2, 12}},
 };
 
 // Scale scales[] = { // {semitones from root, chord type}
@@ -68,10 +89,10 @@ Scale scales[] = { // {semitones from root}
     {"locrian", {0, 1, 3, 5, 6, 8, 10}},
 };
 
-byte currentScale = 2;
-Chord* currentChord = &recipes[0];
-bool mode = true;
-byte currentOffset;
+byte currentScaleIndex = 0;
+byte scalesCount = sizeof(scales) / sizeof scales[0];
+// Chord* currentChord = &recipes[0];
+// byte currentOffset;
 
 const String noteNames[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
@@ -103,6 +124,8 @@ Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
 // EncoderButton eb(4, 5);
 
+enum EncoderMode encoderMode;
+
 void keypadEvent(KeypadEvent);
 // void encoderEvent(EncoderButton& eb);
 void killAll();
@@ -128,46 +151,45 @@ void keypadEvent(KeypadEvent key) {
     switch (keypad.getState()) {
         case PRESSED:
             switch (key) {
-                case 'h': // c
+                case 'a':
                     playChord(0);
                     break;
-                case 'g': // g
-                    playChord(7);
-                    break;
-                case 'i': // d
-                    playChord(2);
-                    break;
-                case 'e': // a
-                    playChord(9);
-                    break;
-                case 'd': // e
-                    playChord(4);
-                    break;
-                case 't': // b
-                    playChord(11);
-                    break;
-                case 'b': // gb
-                    playChord(6);
-                    break;
-                case 'a': // db
+                case 'b':
                     playChord(1);
                     break;
-                case 'c': // ab
-                    playChord(8);
+                case 'c':
+                    playChord(2);
                     break;
-                case 'k': // eb
+                case 'd':
                     playChord(3);
                     break;
-                case 'j': // bb
-                    playChord(10);
+                case 'e':
+                    playChord(4);
                     break;
-                case 'r': // f
+                case 'f':
                     playChord(5);
                     break;
+                case 'g':
+                    playChord(6);
+                    break;
+                case 'h':
+                    break;
+                case 'i':
+                    break;
+                case 'j':
+                    break;
+                case 'k':
+                    break;
+                case 'l':
+                    break;
 
-                
-                case 'f':
-                    //encoder
+                case 't':
+                    // toggle encoder mode
+                    if (encoderMode == SCALE) {
+                        encoderMode = NOTE;
+                    } else {
+                        encoderMode = SCALE;
+                    }
                     break;
             }
             // if (key < 12) {
@@ -177,8 +199,8 @@ void keypadEvent(KeypadEvent key) {
             //     drawScreen();
             // } 
             drawScreen();
-            lcd.setCursor(0, 0);
-            lcd.print(key);
+            // lcd.setCursor(0, 0);
+            // lcd.print(key);
             break;
         case RELEASED:
             break;
@@ -189,24 +211,24 @@ void keypadEvent(KeypadEvent key) {
     }
 }
 
-// void encoderEvent(EncoderButton& eb) {
-//     if (mode) {
-//         currentScale += eb.increment();
-//         if (currentScale >= 2) {
-//             currentScale = 2;
-//         } else if (currentScale <= 0) {
-//             currentScale = 0;
-//         }
-//     } else {
-//         root += eb.increment();
-//         if (root >= 100) {
-//             root = 100;
-//         } else if (root <= 0) {
-//             root = 0;
-//         }
-//     }
-//     drawScreen();
-// }
+void encoderEvent(EncoderButton& eb) {
+    if (encoderMode == SCALE) {
+        currentScaleIndex += eb.increment();
+        if (currentScaleIndex >= scalesCount) {
+            currentScaleIndex = scalesCount;
+        } else if (currentScaleIndex <= 0) {
+            currentScaleIndex = 0;
+        }
+    } else {
+        root += eb.increment();
+        if (root <= 100) {
+            root = 100;
+        } else if (root >= 0) {
+            root = 0;
+        }
+    }
+    drawScreen();
+}
 
 void killAll() {
     for (int i = 0; i < 127; i++) {
@@ -216,27 +238,30 @@ void killAll() {
 
 void playChord(byte offset) {
     killAll();
-    for (uint i = 0; i < sizeof(currentChord->notes) / sizeof(currentChord->notes[0]); i++) {
-        MIDI.sendNoteOn(root + offset + currentChord->notes[i], 127, 1);
-    }
+    // for (uint i = 0; i < sizeof(currentChord->notes) / sizeof(currentChord->notes[0]); i++) {
+    //     MIDI.sendNoteOn(root + offset + currentChord->notes[i], 127, 1);
+    // }
 }
 
 void drawScreen() {
     lcd.clear();
-    lcd.setCursor(1, 0);
-    lcd.print(noteNames[(root) % (sizeof(noteNames) / sizeof(noteNames[0]))]);
-    lcd.print(" ");
-    // lcd.print(scales[currentScale].name);
-    lcd.setCursor(1, 1);
-    // lcd.print(noteNames[(root + currentOffset) % (sizeof(noteNames) / sizeof(noteNames[0]))]);
-    lcd.print(" ");
-    lcd.print(currentChord->name);
-    lcd.setCursor(1, 2);
+    lcd.setCursor(0, 0);
     lcd.print(root);
-    lcd.setCursor(15, 0);
-    if (mode) {
-        lcd.print("S");
-    } else {
-        lcd.print("C");
-    }
+    lcd.setCursor(0, 1);
+    lcd.print(encoderMode);
+    // lcd.print(noteNames[(root) % (sizeof(noteNames) / sizeof(noteNames[0]))]);
+    // lcd.print(" ");
+    // // lcd.print(scales[currentScale].name);
+    // lcd.setCursor(1, 1);
+    // // lcd.print(noteNames[(root + currentOffset) % (sizeof(noteNames) / sizeof(noteNames[0]))]);
+    // lcd.print(" ");
+    // lcd.print(currentChord->name);
+    // lcd.setCursor(1, 2);
+    // lcd.print(root);
+    // lcd.setCursor(15, 0);
+    // if (encoderMode == SCALE) {
+    //     lcd.print("S");
+    // } else {
+    //     lcd.print("C");
+    // }
 }
